@@ -38,9 +38,36 @@ database, for scripts and humans.
 
 ## Setup
 
+It's on [npm](https://www.npmjs.com/package/account-pool-mcp), so there's nothing to clone or build.
+Register it with your MCP client (e.g. `.mcp.json`) — `npx` fetches and caches it on first launch:
+
+```jsonc
+{
+  "mcpServers": {
+    "account-pool": {
+      "command": "npx",
+      "args": ["-y", "account-pool-mcp"],
+      "env": {
+        "APM_ACCOUNTS_FILE": "./accounts.json",
+        "APM_DB_PATH": "./account-pool.db"
+      }
+    }
+  }
+}
+```
+
+Then define your pools in `accounts.json` (an `id` and a credentials blob per account):
+
+```json
+{ "pools": { "realtor": [
+  { "id": "realtor_01", "credentials": { "username": "qa01@example.com", "password": { "env": "REALTOR_01_PW" } } }
+] } }
+```
+
+Want the CLI too? Run it ad-hoc with `npx account-pool status`, or install it on your PATH:
+
 ```bash
-cp examples/accounts.example.json accounts.json     # define your pools
-# then register the server with your MCP client — see examples/claude-mcp-config.json
+npm install -g account-pool-mcp     # adds `account-pool` (CLI) and `account-pool-mcp` (server)
 ```
 
 Point every session's `APM_DB_PATH` at the same file — that shared file is how they coordinate.
