@@ -1,0 +1,58 @@
+{
+  "name": "account-pool-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that brokers exclusive, crash-safe leases on a pool of credentials across unrelated agent sessions. Stops concurrent Claude/agent QA runs from grabbing the same test account.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "playwright",
+    "qa",
+    "test-accounts",
+    "lease",
+    "resource-pool",
+    "concurrency"
+  ],
+  "license": "MIT",
+  "author": "Ankit Sachdeva <ankitsachdeva001@gmail.com>",
+  "homepage": "https://github.com/ankitsxchdeva/account-pool-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ankitsxchdeva/account-pool-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ankitsxchdeva/account-pool-mcp/issues"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "account-pool-mcp": "dist/index.js",
+    "account-pool": "dist/cli.js"
+  },
+  "files": ["dist", "examples", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "node --import tsx src/index.ts",
+    "cli": "node --import tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "better-sqlite3": "^12.11.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

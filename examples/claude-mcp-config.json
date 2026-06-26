@@ -1,0 +1,19 @@
+{
+  "_comment": "Drop the account-pool stanza into your MCP client config (e.g. .mcp.json) alongside your other servers. Every independent agent session that loads this config talks to the SAME database file (APM_DB_PATH), which is how unrelated sessions coordinate. Point APM_DB_PATH at a stable, shared path.",
+  "mcpServers": {
+    "account-pool": {
+      "command": "npx",
+      "args": ["-y", "account-pool-mcp"],
+      "env": {
+        "APM_ACCOUNTS_FILE": "./accounts.json",
+        "APM_DB_PATH": "./account-pool.db",
+        "APM_DEFAULT_TTL_SECONDS": "1800",
+        "APM_LEASE_WAIT_MS": "0"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest", "--isolated"]
+    }
+  }
+}

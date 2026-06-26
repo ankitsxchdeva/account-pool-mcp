@@ -1,0 +1,20 @@
+# Dependencies & build output
+node_modules/
+dist/
+coverage/
+
+# Real account definitions & secrets — ship the .example versions only
+accounts.json
+.env
+.env.*
+!.env.example
+
+# SQLite database files (WAL/SHM siblings included)
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+
+# OS / editor cruft
+.DS_Store
+*.log

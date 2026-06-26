@@ -1,0 +1,21 @@
+{
+  "_comment": "Copy to accounts.json (gitignored) and edit. Each pool is a list of accounts; each account has a stable id and an arbitrary credentials blob. A credential value may be a literal, or { \"env\": \"VAR\" } which is resolved from the environment at lease time so real secrets never live in this file.",
+  "pools": {
+    "realtor": [
+      {
+        "id": "realtor_01",
+        "credentials": { "username": "qa.realtor01@example.com", "password": { "env": "REALTOR_01_PW" } }
+      },
+      {
+        "id": "realtor_02",
+        "credentials": { "username": "qa.realtor02@example.com", "password": { "env": "REALTOR_02_PW" } }
+      }
+    ],
+    "admin": [
+      {
+        "id": "admin_01",
+        "credentials": { "username": "qa.admin01@example.com", "password": { "env": "ADMIN_01_PW" } }
+      }
+    ]
+  }
+}
