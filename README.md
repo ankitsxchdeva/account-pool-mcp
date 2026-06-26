@@ -1,202 +1,69 @@
 # account-pool-mcp
 
-> An MCP server that hands out **exclusive, crash-safe leases** on a pool of credentials — so any
-> number of **independent, unrelated agent sessions** can run browser/QA automation at the same time
-> without two of them ever grabbing the same account.
-
-[![CI](https://github.com/ankitsxchdeva/account-pool-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/ankitsxchdeva/account-pool-mcp/actions/workflows/ci.yml)
-
----
+An MCP server that hands out test accounts to agent sessions one at a time, so two sessions never
+end up logged into the same account.
 
 ## The problem
 
-Run several autonomous agent sessions in parallel — each driving its own isolated Playwright
-browser — and they all need to log in. Left to themselves they independently pick the **same** test
-account and collide. Two sessions logged into one account corrupt each other's server-side state
-(carts, drafts, folders, search state) and produce flaky, meaningless QA results.
+When you run several agent sessions at once — say a few Claude sessions each driving their own
+Playwright browser — they all need to log in, and left alone they'll grab the same test account and
+step on each other. Two sessions on one account corrupt each other's state and your test results
+become meaningless. Picking a random account doesn't really help either: with 10 accounts and 5
+sessions, a collision is already more likely than not.
 
-**Randomly assigning an account per session does not fix this** — it just makes collisions
-probabilistic. This is the birthday problem: with a pool of 10 and only 5 sessions choosing at
-random, a collision is already *more likely than not*. The only correct fix is **exclusive
-checkout**: a session *leases* an account, holds it for the duration of its work, and *releases* it;
-while leased, no other session can be handed that account.
+The fix is to lease accounts. A session checks one out, uses it, and returns it. While it's checked
+out, no one else can be handed it.
 
-Playwright's own runner solves a narrower version of this with `parallelIndex` — but that only works
-*inside one process* that owns all the workers. **Independent agent sessions have no shared parent
-and no shared index**, so there's nothing to key off. `account-pool-mcp` fills that gap: a small,
-standalone broker any number of unrelated sessions can call.
+## How it works
 
-The accounts are just the first instance of a general pattern — **N autonomous agents contending for
-a finite set of exclusive resources.** The same broker works for API keys, sandbox tenants, test
-phone numbers, or any checkout-style resource.
+The server keeps a pool of accounts in a small SQLite database and gives them out one at a time.
+Allocation happens inside a `BEGIN IMMEDIATE` transaction, so even if several sessions ask at the
+exact same moment, they can't be handed the same account. Each lease has a TTL, so if a session
+crashes without returning its account, it gets reclaimed automatically — there's nothing to clean up.
 
-## How it stays correct
+All of this happens in the background. The agent just asks for an account when it needs one; the
+broker decides which one it gets and guarantees no one else has it. There's no shared parent process
+— unrelated sessions coordinate purely through the database file.
 
-One database file is the single source of truth. Every lease/release/renew runs inside a
-**`BEGIN IMMEDIATE`** SQLite transaction, which takes the write lock *before* the read that picks an
-account — so two simultaneous leases can never select the same free row (no time-of-check /
-time-of-use gap). Combined with **WAL mode** and a `busy_timeout`, this holds even when *many
-independent processes* (one per agent session) open the same file at once.
+## Tools
 
-- **Atomic allocation** — `BEGIN IMMEDIATE` + `SELECT … WHERE leased_by IS NULL LIMIT 1` + mark, all
-  in one transaction.
-- **Crash recovery without liveness tracking** — sessions are opaque and may vanish. Each lease has
-  a **TTL**; an abandoned lease simply expires and is reclaimed on the next lease attempt. No daemon,
-  no cleanup job.
-- **Synchronous SQLite** (`better-sqlite3`) removes a whole class of async-driver interleaving bugs.
-- **CSPRNG lease tokens** (`crypto.randomBytes`), so a token can't be guessed and releases are
-  scoped to the holder.
+- `lease_account(pool, holder?)` — check out an account. Returns the account, its credentials, and a
+  `lease_token`. Hold it until you're done.
+- `release_account(lease_token)` — give it back. Idempotent.
+- `renew_lease(lease_token)` — extend the lease if your work runs long (a heartbeat).
+- `pool_status(pool?)` — what's leased vs. free. Never returns credential values.
 
-This is proven by a test, not asserted — see [Correctness is tested](#correctness-is-tested).
+There's also a small `account-pool` CLI (`lease` / `release` / `renew` / `status`) over the same
+database, for scripts and humans.
 
-```
-  agent session A ─┐
-  agent session B ─┼──(MCP stdio)──▶ account-pool-mcp ──▶ SQLite (WAL)
-  agent session C ─┘                    │
-                                        ├─ lease_account
-                                        ├─ release_account
-                                        ├─ renew_lease   (heartbeat)
-                                        └─ pool_status
-```
-
-## Quickstart (30 seconds)
+## Setup
 
 ```bash
-# 1. Define your pools (copy the example, then edit). This file is gitignored.
-cp examples/accounts.example.json accounts.json
-
-# 2. Register it with your MCP client (see examples/claude-mcp-config.json):
-#    "account-pool": { "command": "npx", "args": ["-y", "account-pool-mcp"],
-#                      "env": { "APM_ACCOUNTS_FILE": "./accounts.json",
-#                               "APM_DB_PATH": "./account-pool.db" } }
-
-# That's it. Every session that loads this config now leases from one shared pool.
+cp examples/accounts.example.json accounts.json     # define your pools
+# then register the server with your MCP client — see examples/claude-mcp-config.json
 ```
 
-Prefer a CLI? The same broker ships a `account-pool` command over the same database:
+Point every session's `APM_DB_PATH` at the same file — that shared file is how they coordinate.
 
-```bash
-npx account-pool lease realtor --holder QA-1234   # → account_id, lease_token, credentials
-npx account-pool status realtor                   # who holds what
-npx account-pool release <lease_token>
-```
-
-> **Shared database, many processes.** Independent sessions coordinate *through the database file*.
-> Point every session's `APM_DB_PATH` at the **same stable path** — that's what makes the exclusivity
-> guarantee span unrelated processes.
-
-## The four tools
-
-### `lease_account`
-Claim one free account from a pool, exclusively, until released or the lease expires.
-
-```jsonc
-// request
-{ "pool": "realtor", "holder": "QA-1234", "ttl_seconds": 1800 }
-// response
-{ "account_id": "realtor_01", "pool": "realtor",
-  "credentials": { "username": "qa.realtor01@example.com", "password": "…" },
-  "lease_token": "9f2c…", "expires_at": 1782489586 }
-```
-You **must** call `release_account` with the returned `lease_token` when finished. If your task may
-outlast the TTL, call `renew_lease` to keep it.
-
-### `release_account`
-Release a leased account. **Idempotent** — releasing an already-released, expired, or unknown token
-returns `{ "released": false }` rather than erroring.
-
-```jsonc
-{ "lease_token": "9f2c…" }   →   { "released": true, "account_id": "realtor_01" }
-```
-
-### `renew_lease` (heartbeat)
-Extend the current lease so long-running work isn't reclaimed out from under it. If the lease already
-expired and was reclaimed (or the token is unknown), returns `{ "renewed": false }` with guidance to
-lease again — it never silently re-grants an account that may now be held by someone else.
-
-```jsonc
-{ "lease_token": "9f2c…", "ttl_seconds": 1800 }   →   { "renewed": true, "expires_at": 1782491386 }
-```
-
-### `pool_status`
-Observability. Per pool: `total`, `available`, `leased`, and per-account `state`
-(`free` / `leased` / `expired`) with holder + expiry. **Credential values are never returned.**
-
-```jsonc
-{ "pool": "realtor" }
-→ { "pools": [ { "pool": "realtor", "total": 10, "available": 7, "leased": 3,
-                 "accounts": [ { "account_id": "realtor_01", "state": "leased",
-                                 "holder": "QA-1234", "expires_at": 1782489586 }, … ] } ] }
-```
-
-## Configuration
-
-| Env var | Default | Meaning |
+| Env var | Default | What it does |
 |---|---|---|
-| `APM_ACCOUNTS_FILE` | `./accounts.json` | Pools + accounts seed file (idempotent upsert on start). |
-| `APM_DB_PATH` | `./account-pool.db` | SQLite file. **Point all sessions at the same path.** |
-| `APM_DEFAULT_TTL_SECONDS` | `1800` | Default lease lifetime. |
-| `APM_LEASE_WAIT_MS` | `0` | Exhaustion policy: `0` = fail fast; `>0` = block-and-wait up to this long (jittered backoff) before failing. |
-| `APM_DEBUG` | _(unset)_ | When set, emit debug logs (to stderr). |
+| `APM_ACCOUNTS_FILE` | `./accounts.json` | Pools + accounts to load on startup. |
+| `APM_DB_PATH` | `./account-pool.db` | The SQLite file. Same path for every session. |
+| `APM_DEFAULT_TTL_SECONDS` | `1800` | How long a lease lasts before it's reclaimable. |
+| `APM_LEASE_WAIT_MS` | `0` | `0` = fail fast when the pool is empty; `>0` = wait this long for one to free up. |
 
-| CLI flag | Meaning |
-|---|---|
-| `--db <path>` | Override `APM_DB_PATH`. |
-| `--accounts <path>` | Override `APM_ACCOUNTS_FILE`. |
-| `--reset-leases` | Clear all lease state on startup (fresh slate). Account *definitions* are kept. |
-
-**Exhaustion policy.** Fail-fast (the default) is simplest when `sessions ≤ accounts`. Block-and-wait
-(`APM_LEASE_WAIT_MS > 0`) lets you over-subscribe — queue more work than you have accounts and let
-callers wait for a release.
-
-### Credential indirection (keep secrets out of the seed file)
-
-A credential value may be `{ "env": "REALTOR_01_PW" }`, resolved from the environment **at lease
-time**. A missing env var surfaces a clear error instead of leasing an unusable account. Real secrets
-never have to live in `accounts.json`.
-
-```jsonc
-{ "id": "realtor_01",
-  "credentials": { "username": "qa.realtor01@example.com", "password": { "env": "REALTOR_01_PW" } } }
-```
-
-## Correctness is tested
-
-The headline test seeds a pool of N and fires **M ≫ N concurrent lease attempts**, asserting that
-**exactly N succeed, every returned `account_id` is distinct**, and the rest are turned away — run in
-a loop so a rare interleaving surfaces. It runs two ways:
-
-1. **Multi-connection, in-process** (M=100, N=10, ×20) — many connections to one file racing to lease.
-2. **True OS parallelism via worker threads** (M=40, N=10) — independent threads, each its own
-   connection, proving `BEGIN IMMEDIATE` serializes writers across real processes.
-
-Plus TTL reclaim (injected clock — no sleeps), heartbeat, lifecycle/idempotency, seed-upsert that
-preserves live leases across a restart, env indirection, and a redaction test asserting no credential
-value ever appears in logs or `pool_status`.
-
-```bash
-npm test
-```
+A credential value can be `{ "env": "VAR_NAME" }` instead of a literal, so real secrets stay in the
+environment and out of the accounts file.
 
 ## Security
 
-This is for **test** accounts. It is not an auth provider, secrets vault, or identity system.
+These are test accounts, not a secrets vault. Credential values are never logged or returned by
+`pool_status` — a redacting logger masks them, and all logs go to stderr so they can't corrupt the
+MCP stream. Keep `accounts.json` and `*.db` out of git (only the `.example` files are committed). The
+stdio server trusts whoever runs it locally, so don't point it at production credentials.
 
-- **Credential values are never logged.** A redacting logger masks any secret-looking key; all logs
-  go to **stderr** (stdout is the MCP protocol channel).
-- `accounts.json` and `*.db` files are gitignored — only `.example` versions ship.
-- The stdio server **trusts its local caller** (no network auth in v1). Don't point it at production
-  credentials.
+## Limitations
 
-## Limitations & roadmap
-
-- **Single host.** Coordination is via one SQLite file, so all sessions must share a filesystem. The
-  storage layer (`src/db.ts`) is the only place that knows it's SQLite — a future Postgres/Redis
-  backend can replace it behind the same tool surface for true multi-host coordination.
-- **v1 transport is stdio.** HTTP/SSE transport (for remote/multi-host clients), a read-only status
-  dashboard / `/metrics`, and lease analytics (utilization, wait-time histograms, busiest accounts)
-  are on the roadmap.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+Single host for now: coordination is through one SQLite file, so all sessions have to share a
+filesystem. The storage layer is isolated behind one module, so a Postgres or Redis backend could
+swap in later for multi-host coordination without changing the tools.

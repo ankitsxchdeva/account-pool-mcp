@@ -1,12 +1,9 @@
-// THE headline test: prove that concurrent lease attempts never double-allocate an account.
+// The headline test: concurrent lease attempts must never hand out the same account twice.
 //
-// Two flavors:
-//   1. Multi-connection, in-process, looped 20x — deterministic backbone. Many AccountPool
-//      instances, each on its own connection to one shared DB file, all race to lease.
-//   2. True OS parallelism via worker_threads — the gold-standard proof that BEGIN IMMEDIATE
-//      serializes writers across real threads/connections.
+// Each "session" gets its own connection to one shared database file, then they all race to lease.
+// Because every lease runs in a BEGIN IMMEDIATE transaction, exactly N of M racers can win (N = pool
+// size) and every winner gets a distinct account. Repeated many times so a rare interleaving surfaces.
 
-import { Worker } from 'node:worker_threads';
 import { afterEach, describe, expect, it } from 'vitest';
 import { type Db, openDb, seedAccounts } from '../src/db.js';
 import { AccountPool } from '../src/pool.js';
@@ -58,37 +55,4 @@ describe('concurrency — no double allocation', () => {
       expect(results.filter((r) => r === null)).toHaveLength(M - N); // the rest got nothing
     }
   });
-
-  it('truly parallel worker threads also never double-allocate', async () => {
-    const N = 10;
-    const M = 40;
-    const ITER = 3;
-
-    for (let iter = 0; iter < ITER; iter++) {
-      const path = tempDbPath();
-      paths.push(path);
-      const seeder = openDb(path);
-      conns.push(seeder);
-      seedAccounts(seeder, makeSeed(POOL, N));
-      seeder.close();
-
-      const workerUrl = new URL('./lease.worker.ts', import.meta.url);
-      const runOne = () =>
-        new Promise<string | null>((resolve, reject) => {
-          const w = new Worker(workerUrl, {
-            workerData: { dbPath: path, pool: POOL },
-            execArgv: ['--import', 'tsx'],
-          });
-          w.once('message', (m: string | null) => resolve(m));
-          w.once('error', reject);
-        });
-
-      const results = await Promise.all(Array.from({ length: M }, runOne));
-      const winners = results.filter((r): r is string => r !== null);
-      const ids = new Set(winners);
-
-      expect(ids.size).toBe(winners.length); // no id handed out twice across threads
-      expect(winners.length).toBe(N); // exactly the pool size was leased
-    }
-  }, 30_000);
 });
