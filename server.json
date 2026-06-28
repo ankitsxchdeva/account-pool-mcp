@@ -1,0 +1,53 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.ankitsxchdeva/account-pool-mcp",
+  "title": "Account Pool",
+  "description": "Brokers exclusive, crash-safe leases on a pool of test accounts so parallel Claude/agent QA sessions never grab the same account.",
+  "version": "0.1.1",
+  "websiteUrl": "https://github.com/ankitsxchdeva/account-pool-mcp#readme",
+  "repository": {
+    "url": "https://github.com/ankitsxchdeva/account-pool-mcp",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "account-pool-mcp",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "APM_ACCOUNTS_FILE",
+          "description": "Path to the JSON file defining pools + accounts to load on startup.",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "./accounts.json"
+        },
+        {
+          "name": "APM_DB_PATH",
+          "description": "Path to the SQLite file. Every session that should coordinate must point at the SAME path.",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "./account-pool.db"
+        },
+        {
+          "name": "APM_DEFAULT_TTL_SECONDS",
+          "description": "How long a lease lasts before it is reclaimable if a session crashes without releasing.",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "1800"
+        },
+        {
+          "name": "APM_LEASE_WAIT_MS",
+          "description": "0 = fail fast when the pool is empty; >0 = wait this many ms for an account to free up.",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "0"
+        }
+      ]
+    }
+  ]
+}

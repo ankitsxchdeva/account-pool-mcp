@@ -31,8 +31,26 @@ function fail(data: Record<string, unknown>): ToolResult {
   };
 }
 
+// Server-level instructions are surfaced to the agent during the MCP `initialize` handshake (clients
+// like Claude Code / Cursor / Windsurf inject them into context). Unlike per-tool descriptions, which
+// the model reads only once it is already choosing a tool, this is what makes the agent reach for the
+// pool unprompted — it states the trigger condition for the whole server.
+const INSTRUCTIONS =
+  'This project shares a pool of test accounts across independent agent sessions via ' +
+  'account-pool-mcp. Whenever you are about to log into a test account — in any QA, Playwright, or ' +
+  'browser-automation flow — you MUST call `lease_account` FIRST to obtain one exclusively, instead ' +
+  'of hard-coding, guessing, or reusing an account. Use only the account it returns, and use exactly ' +
+  'one account per session at a time. Call `release_account` with the returned `lease_token` as soon ' +
+  'as you are finished so other sessions can use it. If your work may outlast the lease TTL, call ' +
+  '`renew_lease` periodically as a heartbeat. Use `pool_status` to see what is free vs. leased. This ' +
+  'is the only safe way to pick a test account here: two sessions on the same account corrupt each ' +
+  "other's state and invalidate the run.";
+
 export function buildServer(pool: AccountPool, config: AppConfig): McpServer {
-  const server = new McpServer({ name: 'account-pool-mcp', version: '0.1.0' });
+  const server = new McpServer(
+    { name: 'account-pool-mcp', version: '0.1.1' },
+    { instructions: INSTRUCTIONS },
+  );
 
   server.tool(
     'lease_account',

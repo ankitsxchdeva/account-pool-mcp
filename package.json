@@ -1,6 +1,6 @@
 {
   "name": "account-pool-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server that brokers exclusive, crash-safe leases on a pool of credentials across unrelated agent sessions. Stops concurrent Claude/agent QA runs from grabbing the same test account.",
   "keywords": [
     "mcp",
@@ -10,7 +10,12 @@
     "test-accounts",
     "lease",
     "resource-pool",
-    "concurrency"
+    "concurrency",
+    "claude",
+    "claude-code",
+    "playwright-mcp",
+    "agent",
+    "parallel"
   ],
   "license": "MIT",
   "author": "Ankit Sachdeva <ankitsachdeva001@gmail.com>",
@@ -54,5 +59,6 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
-  }
+  },
+  "mcpName": "io.github.ankitsxchdeva/account-pool-mcp"
 }

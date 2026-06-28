@@ -1,0 +1,38 @@
+# Smithery deployment manifest — https://smithery.ai/docs
+# account-pool-mcp is a local stdio server distributed on npm; Smithery launches it via npx.
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      accountsFile:
+        type: string
+        title: Accounts file
+        description: Path to the JSON file defining pools + accounts to load on startup.
+        default: ./accounts.json
+      dbPath:
+        type: string
+        title: Database path
+        description: Path to the SQLite file. Every coordinating session must share the same path.
+        default: ./account-pool.db
+      defaultTtlSeconds:
+        type: integer
+        title: Default lease TTL (seconds)
+        description: How long a lease lasts before it is reclaimable if a session crashes.
+        default: 1800
+      leaseWaitMs:
+        type: integer
+        title: Lease wait (ms)
+        description: 0 = fail fast when the pool is empty; >0 = wait this long for an account.
+        default: 0
+  commandFunction: |-
+    (config) => ({
+      command: 'npx',
+      args: ['-y', 'account-pool-mcp'],
+      env: {
+        APM_ACCOUNTS_FILE: config.accountsFile ?? './accounts.json',
+        APM_DB_PATH: config.dbPath ?? './account-pool.db',
+        APM_DEFAULT_TTL_SECONDS: String(config.defaultTtlSeconds ?? 1800),
+        APM_LEASE_WAIT_MS: String(config.leaseWaitMs ?? 0)
+      }
+    })
