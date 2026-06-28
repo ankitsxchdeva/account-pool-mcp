@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1280px; height: 640px; overflow: hidden; }
+  body {
+    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+    background:
+      radial-gradient(1100px 700px at 88% -12%, rgba(203,166,247,0.16), transparent 60%),
+      radial-gradient(900px 600px at -6% 112%, rgba(137,180,250,0.12), transparent 55%),
+      linear-gradient(135deg, #1e1e2e 0%, #181825 55%, #11111b 100%);
+    color: #cdd6f4;
+    display: flex;
+    align-items: center;
+    gap: 44px;
+    padding: 60px 64px;
+  }
+  .left { width: 520px; flex: none; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+    font-size: 16px; letter-spacing: .12em; text-transform: uppercase;
+    color: #a6adc8; border: 1px solid #313244; border-radius: 999px;
+    padding: 8px 16px; background: rgba(49,50,68,0.25);
+  }
+  .badge .dot { width: 9px; height: 9px; border-radius: 50%; background: #a6e3a1; box-shadow: 0 0 12px #a6e3a1; }
+  h1 {
+    font-size: 58px; font-weight: 800; letter-spacing: -0.02em;
+    margin: 26px 0 0; color: #f5f6fc; line-height: 1.0;
+  }
+  h1 .mcp { color: #cba6f7; }
+  .tag { font-size: 25px; line-height: 1.4; color: #bac2de; margin-top: 20px; font-weight: 450; }
+  .tag b { color: #f9e2af; font-weight: 700; }
+  .feats { margin-top: 26px; font-size: 17px; color: #9399b2; line-height: 1.7; }
+  .feats .k { color: #94e2d5; }
+  .install {
+    margin-top: 26px; display: inline-block;
+    font-family: "SF Mono", Menlo, monospace; font-size: 18px;
+    color: #cdd6f4; background: #11111b; border: 1px solid #313244;
+    border-radius: 10px; padding: 12px 18px;
+  }
+  .install .p { color: #6c7086; }
+
+  .term {
+    flex: 1; align-self: stretch; min-width: 0;
+    background: #0e0e16; border: 1px solid #313244; border-radius: 16px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.45);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .term .bar {
+    display: flex; align-items: center; gap: 9px;
+    padding: 16px 18px; border-bottom: 1px solid #1f1f2e; background: #14141f;
+  }
+  .term .bar i { width: 13px; height: 13px; border-radius: 50%; display: inline-block; }
+  .r { background: #f38ba8; } .y { background: #f9e2af; } .g { background: #a6e3a1; }
+  .term .bar span { margin-left: 10px; font-family: "SF Mono", Menlo, monospace; font-size: 15px; color: #6c7086; }
+  .body {
+    padding: 24px 26px; font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+    font-size: 19.5px; line-height: 1.62; flex: 1; display: flex; flex-direction: column; justify-content: center;
+  }
+  .body .cmd { color: #cdd6f4; }
+  .body .cmd .pr { color: #94e2d5; }
+  .body .cmd .fl { color: #f9e2af; }
+  .out { color: #9399b2; }
+  .out .id { color: #89b4fa; }
+  .ok { color: #a6e3a1; }
+  .note { color: #6c7086; }
+  .bad { color: #f38ba8; font-weight: 600; }
+  .sp { height: 14px; }
+</style>
+</head>
+<body>
+  <div class="left">
+    <div class="badge"><span class="dot"></span>MCP server</div>
+    <h1>account-pool<span class="mcp">-mcp</span></h1>
+    <div class="tag">Exclusive, crash-safe leases on a pool of test accounts — so parallel agent QA sessions <b>never grab the same one</b>.</div>
+    <div class="feats">
+      <span class="k">›</span> SQLite-backed atomic allocation<br>
+      <span class="k">›</span> per-lease TTL auto-reclaim on crash<br>
+      <span class="k">›</span> no shared parent process
+    </div>
+    <div class="install"><span class="p">$</span> npx -y account-pool-mcp</div>
+  </div>
+
+  <div class="term">
+    <div class="bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>account-pool</span></div>
+    <div class="body">
+      <div class="cmd"><span class="pr">$</span> account-pool lease realtor <span class="fl">--holder A</span></div>
+      <div class="out"><span class="id">realtor_01</span> &nbsp;leased <span class="ok">✓</span></div>
+      <div class="sp"></div>
+      <div class="cmd"><span class="pr">$</span> account-pool lease realtor <span class="fl">--holder B</span></div>
+      <div class="out"><span class="id">realtor_02</span> &nbsp;leased <span class="ok">✓</span> &nbsp;<span class="note">different account</span></div>
+      <div class="sp"></div>
+      <div class="cmd"><span class="pr">$</span> account-pool lease realtor <span class="fl">--holder C</span></div>
+      <div class="out"><span class="bad">pool exhausted — refused</span> &nbsp;<span class="note">no double-booking</span></div>
+    </div>
+  </div>
+</body>
+</html>
