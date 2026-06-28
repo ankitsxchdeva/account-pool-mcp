@@ -5,9 +5,12 @@
 [![CI](https://github.com/ankitsxchdeva/account-pool-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/ankitsxchdeva/account-pool-mcp/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/account-pool-mcp.svg)](./LICENSE)
 [![Model Context Protocol](https://img.shields.io/badge/MCP-server-blue.svg)](https://modelcontextprotocol.io)
+[![Glama score](https://glama.ai/mcp/servers/ankitsxchdeva/account-pool-mcp/badges/score.svg)](https://glama.ai/mcp/servers/ankitsxchdeva/account-pool-mcp)
 
 An MCP server that hands out test accounts to agent sessions one at a time, so two sessions never
 end up logged into the same account.
+
+![account-pool-mcp demo: two sessions lease different accounts, a third is refused, the pool recovers on release](https://raw.githubusercontent.com/ankitsxchdeva/account-pool-mcp/main/docs/demo.gif)
 
 ## The problem
 
